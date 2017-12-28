@@ -1,5 +1,6 @@
 import copy
 import numpy as np
+import random
 from random import shuffle
 import cv2
 from keras.applications.imagenet_utils import preprocess_input
@@ -175,4 +176,69 @@ class Generator(object):
                     output_keys = []
                     inputs = []
                     targets = []
-                    yield tmp_keys, preprocess_input(tmp_inp), tmp_targets
+                    
+                    # preprocess input: preprocess_input(tmp_inp, mode="tf")
+                    tmp_inp /=127.5
+                    tmp_inp -= 1.
+                    
+                    yield tmp_keys, tmp_inp, tmp_targets
+                    
+class SeqGenerator(object):
+    def __init__(self, gt, bbox_util,
+                 batch_size, path_prefix,
+                 train_keys, val_keys, image_size, seq_len):
+        self.gt = gt
+        self.bbox_util = bbox_util
+        self.batch_size = batch_size
+        self.path_prefix = path_prefix
+        self.train_keys = train_keys
+        self.val_keys = val_keys
+        self.train_batches = len(train_keys)
+        self.val_batches = len(val_keys)
+        self.image_size = image_size
+        self.seq_len = seq_len
+    
+    def generate(self, train=True):
+        while True:
+            if train:
+                keys = self.train_keys
+            else:
+                keys = self.val_keys
+            output_keys = []
+            inputs = []
+            targets = []
+            
+            seq_len = self.seq_len
+            image_size = self.image_size
+            batch_size = self.batch_size
+            batch_key_ids = random.sample([i for i in range(len(keys)-seq_len)], batch_size)
+            
+            batch_data = []
+            batch_target = []
+            for batch_key_id in batch_key_ids:
+                seq_data = np.zeros([seq_len,]+list(image_size))
+                for i in range(seq_len):
+                    key = keys[batch_key_id+i]
+                    img_path = self.path_prefix + key
+                    img = cv2.imread(img_path).astype('float32')
+                    img = cv2.resize(img, (self.image_size[0], self.image_size[1])).astype('float32')
+                    seq_data[i,:,:,:] = img
+                batch_data.append(seq_data)
+                y = self.gt[keys[batch_key_id+seq_len]].copy()
+                y = self.bbox_util.assign_boxes(y)
+                batch_target.append(y)
+            
+            tmp_inp = np.array(batch_data)
+            tmp_targets = np.array(batch_target)
+            batch_data = []
+            batch_target = []
+            
+            # preprocess input: preprocess_input(tmp_inp, mode="tf")
+            tmp_inp /=127.5
+            tmp_inp -= 1.
+            
+            yield tmp_inp, tmp_targets
+            
+            
+            
+            
