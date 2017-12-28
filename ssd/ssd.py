@@ -4,21 +4,21 @@ from ssd.ssd_layers import PriorBox
 from ssd.ssd_layers import AtrousConvolution2D
 
 class SSD(object):
-    def __init__(self, input_shape, num_classes):
+    def __init__(self):
         super().__init__()
-        self.input_shape = input_shape
-        self.num_classes = num_classes
+        #self.input_shape = input_shape
+        #self.num_classes = num_classes
         
         self.fc6 = AtrousConvolution2D((3,3,512,1024), name="fc6")
-        self.conv4_3_norm = Normalize(20, name="conv4_3_norm")
+        #self.conv4_3_norm = Normalize(20, name="conv4_3_norm")
         
-    def __call__(self, input_tensor, PRIORS=True):
+    def __call__(self, input_tensor):
         
-        input_shape = self.input_shape
-        num_classes = self.num_classes
+        #input_shape = self.input_shape
+        #num_classes = self.num_classes
         
         # input image size
-        img_size = (input_shape[1], input_shape[0])
+        #img_size = (input_shape[1], input_shape[0])
         # block1
         h_conv1_1 = tf.layers.conv2d(input_tensor, 64, [3, 3], padding="same",name="conv1_1", activation=tf.nn.relu)
         h_conv1_2 = tf.layers.conv2d(h_conv1_1, 64, [3, 3], padding="same",name="conv1_2", activation=tf.nn.relu)
@@ -61,8 +61,8 @@ class SSD(object):
         
         # block7, subsampling
         h_conv7_1 = tf.layers.conv2d(h_conv6_2, 128, [1, 1], padding="same",name="conv7_1", activation=tf.nn.relu)
-        h_conv7_1 = tf.keras.layers.ZeroPadding2D()(h_conv7_1)
-        h_conv7_2 = tf.layers.conv2d(h_conv7_1, 256, [3, 3], strides=(2, 2), padding="valid",name="conv7_2", activation=tf.nn.relu) # maybe "same" is also fine?
+        #h_conv7_1 = tf.keras.layers.ZeroPadding2D()(h_conv7_1)
+        h_conv7_2 = tf.layers.conv2d(h_conv7_1, 256, [3, 3], strides=(2, 2), padding="same",name="conv7_2", activation=tf.nn.relu) # maybe "same" is also fine?
         
         # block8
         h_conv8_1 = tf.layers.conv2d(h_conv7_2, 128, [1, 1], padding="same",name="conv8_1", activation=tf.nn.relu)
@@ -77,6 +77,25 @@ class SSD(object):
         #h_pool6 = tf.layers.average_pooling2d(h_conv8_2, [height, width], [height,width])
         h_pool6 = tf.reduce_mean(h_conv8_2, [1,2])
         
+        # return feature vectors
+        return h_conv4_3, h_fc7, h_conv6_2, h_conv7_2, h_conv8_2, h_pool6
+        
+
+class Detector(object):
+    def __init__(self, input_shape, num_classes):
+        
+        self.input_shape = input_shape
+        self.num_classes = num_classes
+        #self.fc6 = AtrousConvolution2D((3,3,512,1024), name="fc6")
+        self.conv4_3_norm = Normalize(20, name="conv4_3_norm")
+        
+    def __call__(self, feats, PRIORS=False):
+        
+        input_shape = self.input_shape
+        num_classes = self.num_classes
+        h_conv4_3, h_fc7, h_conv6_2, h_conv7_2, h_conv8_2, h_pool6 = feats
+        
+        img_size = (input_shape[1], input_shape[0])
         ###########################
         # prediction from conv4_3##
         ###########################
@@ -214,21 +233,92 @@ class SSD(object):
         # final prediction
         predictions = tf.concat([h_mbox_loc, h_mbox_conf, h_mbox_priorbox], axis=2, name="predictions")
         
-        
         if PRIORS:
-            return predictions, h_mbox_priorbox
+            return h_mbox_priorbox
         else:
             return predictions
         
         
+class UpSample(object):
+    def __init__(self):
+        pass
+    
+    def __call__(self, feats):
+        h_conv4_3, h_fc7, h_conv6_2, h_conv7_2, h_conv8_2, h_pool6 = feats
         
+        up_factors = []
         
+        # upsampling
+        ## fc7 up
+        up_factor = h_conv4_3.get_shape().as_list()[1]//h_fc7.get_shape().as_list()[1]
+        fc7_up = tf.keras.layers.UpSampling2D(up_factor, name="fc_up")
+        h_fc7_up = fc7_up(h_fc7)
+        up_factors.append(up_factor)
+        ## conv6_2 up
+        up_factor = h_conv4_3.get_shape().as_list()[1]//h_conv6_2.get_shape().as_list()[1]
+        conv6_2_up = tf.keras.layers.UpSampling2D(up_factor, name="conv6_2_up")
+        h_conv6_2_up = conv6_2_up(h_conv6_2)
+        up_factors.append(up_factor)
+        ## conv7_2 up
+        up_factor = h_conv4_3.get_shape().as_list()[1]//h_conv7_2.get_shape().as_list()[1]
+        conv7_2_up = tf.keras.layers.UpSampling2D(up_factor, name="conv7_2_up")
+        h_conv7_2_up = conv6_2_up(h_conv6_2)
+        up_factors.append(up_factor)
+        ## conv8_2 up
+        up_factor = h_conv4_3.get_shape().as_list()[1]//h_conv8_2.get_shape().as_list()[1]
+        conv8_2_up = tf.keras.layers.UpSampling2D(up_factor, name="conv8_2_up")
+        h_conv8_2_up = conv6_2_up(h_conv6_2)
+        up_factors.append(up_factor)
+        ## pool6 up
+        h_pool6 = tf.expand_dims(h_pool6, 1)
+        h_pool6 = tf.expand_dims(h_pool6, 1)
         
+        up_factor = h_conv4_3.get_shape().as_list()[1]//h_pool6.get_shape().as_list()[1]
+        pool6_up = tf.keras.layers.UpSampling2D(up_factor, name="pool6_up")
+        h_pool6_up = pool6_up(h_pool6)
+        up_factors.append(up_factor)
         
+        up_feats = [h_conv4_3, h_fc7_up, h_conv6_2_up, h_conv7_2_up, h_conv8_2_up, h_pool6_up] 
         
+        # concatenate together
+        up_feats_concat = tf.concat(up_feats, axis=3, name="up_feats_concat")
         
+        return up_feats_concat, up_factors
+
+## downsample for final detection
+class DownSample(object):
+    def __init__(self):
+        pass
+    
+    def test(self):
+        print("hhh")
+    
+    def __call__(self, feats_concat, up_factors):
+        h_conv4_3 = feats_concat[:,:,:,:512] # 512
+        h_fc7_up = feats_concat[:,:,:,512:512+1024] # 1024
+        h_conv6_2_up = feats_concat[:,:,:,512+1024:2048] # 512
+        h_conv7_2_up = feats_concat[:,:,:,2048:2048+256] # 256
+        h_conv8_2_up = feats_concat[:,:,:,2048+256:2048+256+256] # 256
+        h_pool6_up = feats_concat[:,:,:,2048+512:2048+512+256] # 256
         
+        # downsample by pooling
+        fc7_down = tf.keras.layers.AveragePooling2D(up_factors[0], padding="same", name="fc7_down")
+        h_fc7 = fc7_down(h_fc7_up)
         
+        conv6_2_down = tf.keras.layers.AveragePooling2D(up_factors[1], padding="same", name="conv6_2_down")
+        h_conv6_2 = conv6_2_down(h_conv6_2_up)
+        
+        conv7_2_down = tf.keras.layers.AveragePooling2D(up_factors[2], padding="same", name="conv7_2_down")
+        h_conv7_2 = conv7_2_down(h_conv7_2_up)
+        
+        conv8_2_down = tf.keras.layers.AveragePooling2D(up_factors[3], padding="same", name="conv8_2_down")
+        h_conv8_2 = conv8_2_down(h_conv8_2_up)
+        
+        pool6_down = tf.keras.layers.AveragePooling2D(up_factors[4], padding="same", name="pool6_down")
+        h_pool6 = pool6_down(h_pool6_up)
+        h_pool6 = tf.squeeze(h_pool6, [1,2], name="pool6_squeeze")
+        
+        return h_conv4_3, h_fc7, h_conv6_2, h_conv7_2, h_conv8_2, h_pool6
         
         
         
