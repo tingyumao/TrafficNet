@@ -215,29 +215,43 @@ class SeqGenerator(object):
             
             batch_data = []
             batch_target = []
+            batch_target_img = []
+            batch_keys = []
             for batch_key_id in batch_key_ids:
+                seq_keys = []
                 seq_data = np.zeros([seq_len,]+list(image_size))
                 for i in range(seq_len):
                     key = keys[batch_key_id+i]
+                    seq_keys.append(key)
+                    
                     img_path = self.path_prefix + key
                     img = cv2.imread(img_path).astype('float32')
                     img = cv2.resize(img, (self.image_size[0], self.image_size[1])).astype('float32')
                     seq_data[i,:,:,:] = img
                 batch_data.append(seq_data)
-                y = self.gt[keys[batch_key_id+seq_len]].copy()
+                key = keys[batch_key_id+seq_len]
+                batch_keys.append([seq_keys, key])
+                img_path = self.path_prefix + key
+                img = cv2.imread(img_path).astype('float32')
+                img = cv2.resize(img, (self.image_size[0], self.image_size[1])).astype('float32')
+                batch_target_img.append(img)
+                y = self.gt[key].copy()
                 y = self.bbox_util.assign_boxes(y)
                 batch_target.append(y)
             
             tmp_inp = np.array(batch_data)
             tmp_targets = np.array(batch_target)
+            tmp_targets_img = np.array(batch_target_img)
+            tmp_keys = batch_keys
             batch_data = []
             batch_target = []
-            
+            bath_target_img = []
+            batch_keys = []
             # preprocess input: preprocess_input(tmp_inp, mode="tf")
             tmp_inp /=127.5
             tmp_inp -= 1.
             
-            yield tmp_inp, tmp_targets
+            yield tmp_keys, tmp_inp, tmp_targets, tmp_targets_img
             
             
             

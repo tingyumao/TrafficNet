@@ -1,2 +1,5 @@
-./models/*
+.ipynb_checkpoints/*.ipynb
+models/*
+logs/*
 *.pyc
+ssd/__pycache__/*.pyc

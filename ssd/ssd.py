@@ -53,8 +53,9 @@ class SSD(object):
         h_fc6 = fc6(h_pool5)
         
         # FC7
-        h_fc7 = tf.layers.conv2d(h_fc6, 1024, [1, 1], padding="same",name="fc7", activation=tf.nn.relu)
+        h_fc7 = tf.layers.conv2d(h_fc6, 512, [1, 1], padding="same",name="fc7", activation=tf.nn.relu)
         
+        """
         # block6, subsampling
         h_conv6_1 = tf.layers.conv2d(h_fc7, 256, [1, 1], padding="same",name="conv6_1", activation=tf.nn.relu)
         h_conv6_2 = tf.layers.conv2d(h_conv6_1, 512, [3, 3], strides=(2, 2), padding="same",name="conv6_2", activation=tf.nn.relu)
@@ -76,9 +77,9 @@ class SSD(object):
         #_, height, width, _ = tf.shape(h_conv8_2)
         #h_pool6 = tf.layers.average_pooling2d(h_conv8_2, [height, width], [height,width])
         h_pool6 = tf.reduce_mean(h_conv8_2, [1,2])
-        
+        """
         # return feature vectors
-        return h_conv4_3, h_fc7, h_conv6_2, h_conv7_2, h_conv8_2, h_pool6
+        return h_conv4_3, h_fc7#, h_conv6_2, h_conv7_2, h_conv8_2, h_pool6
         
 
 class Detector(object):
@@ -93,7 +94,8 @@ class Detector(object):
         
         input_shape = self.input_shape
         num_classes = self.num_classes
-        h_conv4_3, h_fc7, h_conv6_2, h_conv7_2, h_conv8_2, h_pool6 = feats
+        #h_conv4_3, h_fc7, h_conv6_2, h_conv7_2, h_conv8_2, h_pool6 = feats
+        h_conv4_3, h_fc7 = feats
         
         img_size = (input_shape[1], input_shape[0])
         ###########################
@@ -133,7 +135,7 @@ class Detector(object):
         ## priorbox
         priorbox = PriorBox(img_size, 60.0, max_size=114, aspect_ratios=[1/2., 2, 3], variances=[0.1, 0.1, 0.2, 0.2], name="fc7_mbox_priorbox")
         h_fc7_mbox_priorbox = priorbox(h_fc7)
-        
+        """
         ##########################
         # prediction from conv6_2#
         ##########################
@@ -197,13 +199,14 @@ class Detector(object):
         ## priorbox
         priorbox = PriorBox(img_size, 222.0, max_size=276.0, aspect_ratios=[2, 3], variances=[0.1,0.1,0.2,0.2], name="conv8_2_mbox_priorbox")
         ### reshape h_pool6
-        target_shape = (1,1,256)
+        target_shape = (1,1) + (h_pool6.get_shape().as_list()[-1],)
         h_pool6_reshaped = tf.keras.layers.Reshape(target_shape, name="pool6_reshaped")(h_pool6)
         h_pool6_mbox_priorbox = priorbox(h_pool6_reshaped)
-        
+        """
         ##########################
         # Gather all predictions #
         ##########################
+        """
         h_mbox_loc = tf.concat( [h_conv4_3_norm_mbox_loc_flat, 
                                  h_fc7_mbox_loc_flat, 
                                  h_conv6_2_mbox_loc_flat, 
@@ -222,6 +225,13 @@ class Detector(object):
                                  h_conv7_2_mbox_priorbox, 
                                  h_conv8_2_mbox_priorbox, 
                                  h_pool6_mbox_priorbox], axis = 1, name = "mbox_priorbox")
+        """
+        h_mbox_loc = tf.concat( [h_conv4_3_norm_mbox_loc_flat, 
+                                 h_fc7_mbox_loc_flat], axis = 1, name = "mbox_loc")
+        h_mbox_conf = tf.concat( [h_conv4_3_norm_mbox_conf_flat, 
+                                 h_fc7_mbox_conf_flat], axis = 1, name = "mbox_conf")
+        h_mbox_priorbox = tf.concat( [h_conv4_3_norm_mbox_priorbox, 
+                                 h_fc7_mbox_priorbox], axis = 1, name = "mbox_priorbox")
         
         
         # count number of prior bboxs

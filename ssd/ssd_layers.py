@@ -63,7 +63,7 @@ class Normalize(object):
         #super(Normalize, self).__init__(**kwargs)
         
         #self.input_spec = [InputSpec(shape=input_shape)]
-        shape = 128#(input_shape[self.axis],)
+        shape = 512#(input_shape[self.axis],)
         init_gamma = self.scale * np.ones(shape).astype("float32")
         #self.gamma = K.variable(init_gamma, name='{}_gamma'.format(self.name))
         self.gamma = tf.Variable(init_gamma, name='{}_gamma'.format(self.name), trainable=True)
