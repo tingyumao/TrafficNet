@@ -3,3 +3,4 @@ models/*
 logs/*
 *.pyc
 ssd/__pycache__/*.pyc
+#data/*

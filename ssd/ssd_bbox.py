@@ -113,7 +113,7 @@ class BBoxUtility(object):
         """Assign boxes to priors for training.
         # Arguments
             boxes: Box, numpy tensor of shape (num_boxes, 4 + num_classes),
-                num_classes without background.
+                **num_classes without background**.
         # Return
             assignment: Tensor with assigned boxes,
                 numpy tensor of shape (num_boxes, 4 + num_classes + 8),

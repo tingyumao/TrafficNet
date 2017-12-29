@@ -17,10 +17,10 @@ def read_xml(e, dct):
         ncols=float(e.find('imagesize').find('ncols').text)
 
         #print nrows, ncols
-        if atype.find('name').text == 'car':
-            label = [1.0, 0.0, 0.0]
-        elif atype.find('name').text == 'truck' or atype.find('name').text =='bus':
-            label = [0.0, 1.0, 0.0]
+        #if atype.find('name').text == 'car':
+        label = [1.0]
+        #elif atype.find('name').text == 'truck' or atype.find('name').text =='bus':
+        #    label = [0.0, 1.0, 0.0]
         for polygon in atype.findall('polygon'):
             x,y=[], []
             for pt in polygon.findall('pt'):

@@ -7,7 +7,7 @@ from keras.applications.imagenet_utils import preprocess_input
 
 class Generator(object):
     def __init__(self, gt, bbox_util,
-                 batch_size, path_prefix,
+                 batch_size, path_prefixs,
                  train_keys, val_keys, image_size,
                  saturation_var=0.5,
                  brightness_var=0.5,
@@ -21,7 +21,7 @@ class Generator(object):
         self.gt = gt
         self.bbox_util = bbox_util
         self.batch_size = batch_size
-        self.path_prefix = path_prefix
+        self.path_prefixs = path_prefixs
         self.train_keys = train_keys
         self.val_keys = val_keys
         self.train_batches = len(train_keys)
@@ -140,21 +140,24 @@ class Generator(object):
     def generate(self, train=True):
         while True:
             if train:
-                shuffle(self.train_keys)
+                #shuffle(self.train_keys)
                 keys = self.train_keys
             else:
-                shuffle(self.val_keys)
+                #shuffle(self.val_keys)
                 keys = self.val_keys
             output_keys = []
             inputs = []
             targets = []
-            for key in keys:            
-                img_path = self.path_prefix + key
+            sample_paths = np.random.choice(self.path_prefixs, self.batch_size)
+            for path in sample_paths:
+                key = np.random.choice(keys[path], 1)[0]
+                img_path = path + key#self.path_prefix + key
                 img = cv2.imread(img_path).astype('float32')
-                y = self.gt[key].copy()
-                if train and self.do_crop:
-                    img, y = self.random_sized_crop(img, y)
+                y = self.gt[path][key].copy()
+                #if train and self.do_crop:
+                #    img, y = self.random_sized_crop(img, y)
                 img = cv2.resize(img, self.image_size).astype('float32')
+                """
                 if train:
                     shuffle(self.color_jitter)
                     for jitter in self.color_jitter:
@@ -165,23 +168,24 @@ class Generator(object):
                         img, y = self.horizontal_flip(img, y)
                     if self.vflip_prob > 0:
                         img, y = self.vertical_flip(img, y)
+                """
                 y = self.bbox_util.assign_boxes(y)
                 output_keys.append(key)
                 inputs.append(img)                
                 targets.append(y)
-                if len(targets) == self.batch_size:
-                    tmp_keys = copy.copy(output_keys)
-                    tmp_inp = np.array(inputs)
-                    tmp_targets = np.array(targets)
-                    output_keys = []
-                    inputs = []
-                    targets = []
-                    
-                    # preprocess input: preprocess_input(tmp_inp, mode="tf")
-                    tmp_inp /=127.5
-                    tmp_inp -= 1.
-                    
-                    yield tmp_keys, tmp_inp, tmp_targets
+                #if len(targets) == self.batch_size:
+            tmp_keys = copy.copy(output_keys)
+            tmp_inp = np.array(inputs)
+            tmp_targets = np.array(targets)
+            output_keys = []
+            inputs = []
+            targets = []
+
+            # preprocess input: preprocess_input(tmp_inp, mode="tf")
+            tmp_inp /=255.#127.5
+            #tmp_inp -= 1.
+
+            yield tmp_keys, tmp_inp, tmp_targets
                     
 class SeqGenerator(object):
     def __init__(self, gt, bbox_util,
