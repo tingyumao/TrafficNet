@@ -189,14 +189,14 @@ class Generator(object):
                     
 class SeqGenerator(object):
     def __init__(self, gt, bbox_util,
-                 batch_size, path_prefix,
+                 batch_size, path_prefixs,
                  train_keys, val_keys, image_size, seq_len):
-        self.gt = gt
+        self.gt = gt # dict(dict)
         self.bbox_util = bbox_util
         self.batch_size = batch_size
-        self.path_prefix = path_prefix
-        self.train_keys = train_keys
-        self.val_keys = val_keys
+        self.path_prefixs = path_prefixs # list
+        self.train_keys = train_keys # dict(list)
+        self.val_keys = val_keys # dict(list)
         self.train_batches = len(train_keys)
         self.val_batches = len(val_keys)
         self.image_size = image_size
@@ -215,31 +215,47 @@ class SeqGenerator(object):
             seq_len = self.seq_len
             image_size = self.image_size
             batch_size = self.batch_size
-            batch_key_ids = random.sample([i for i in range(len(keys)-seq_len)], batch_size)
+            #batch_key_ids = random.sample([i for i in range(len(keys)-seq_len)], batch_size)
+            sample_paths = np.random.choice(self.path_prefixs, self.batch_size)
             
             batch_data = []
             batch_target = []
+            batch_seq_gt = []
             batch_target_img = []
             batch_keys = []
-            for batch_key_id in batch_key_ids:
+            for path in sample_paths:
+                # seq input
                 seq_keys = []
+                batch_key_id = np.random.randint(len(keys[path])-seq_len, size=1)[0]#np.random.choice(keys[path], 1)[0]
                 seq_data = np.zeros([seq_len,]+list(image_size))
+                # seq target
+                seq_target = []
                 for i in range(seq_len):
-                    key = keys[batch_key_id+i]
+                    key = keys[path][batch_key_id+i]
                     seq_keys.append(key)
                     
-                    img_path = self.path_prefix + key
+                    img_path = path + key
                     img = cv2.imread(img_path).astype('float32')
                     img = cv2.resize(img, (self.image_size[0], self.image_size[1])).astype('float32')
                     seq_data[i,:,:,:] = img
+                    # seq target
+                    y = self.gt[path][key].copy()
+                    y = self.bbox_util.assign_boxes(y)
+                    seq_target.append(y)
+                # input seq data
                 batch_data.append(seq_data)
-                key = keys[batch_key_id+seq_len]
+                # seq target
+                batch_seq_gt.append(seq_target)
+                # target id
+                key = keys[path][batch_key_id+seq_len]
                 batch_keys.append([seq_keys, key])
-                img_path = self.path_prefix + key
+                # target image
+                img_path = path + key
                 img = cv2.imread(img_path).astype('float32')
                 img = cv2.resize(img, (self.image_size[0], self.image_size[1])).astype('float32')
                 batch_target_img.append(img)
-                y = self.gt[key].copy()
+                # target
+                y = self.gt[path][key].copy()
                 y = self.bbox_util.assign_boxes(y)
                 batch_target.append(y)
             
@@ -247,15 +263,17 @@ class SeqGenerator(object):
             tmp_targets = np.array(batch_target)
             tmp_targets_img = np.array(batch_target_img)
             tmp_keys = batch_keys
-            batch_data = []
-            batch_target = []
-            bath_target_img = []
-            batch_keys = []
+            tmp_seq_gt = np.array(batch_seq_gt)
+            #batch_data = []
+            #batch_target = []
+            #bath_target_img = []
+            #batch_keys = []
             # preprocess input: preprocess_input(tmp_inp, mode="tf")
-            tmp_inp /=127.5
-            tmp_inp -= 1.
+            #tmp_inp /=127.5
+            #tmp_inp -= 1.
+            tmp_inp /= 255.
             
-            yield tmp_keys, tmp_inp, tmp_targets, tmp_targets_img
+            yield tmp_keys, tmp_inp, tmp_targets, tmp_targets_img, tmp_seq_gt
             
             
             

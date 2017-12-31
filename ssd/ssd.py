@@ -133,7 +133,7 @@ class Detector(object):
         ## flatten: y = tf.layers.Flatten()(x)
         h_fc7_mbox_conf_flat = tf.layers.Flatten()(h_fc7_mbox_conf)
         ## priorbox
-        priorbox = PriorBox(img_size, 60.0, max_size=114, aspect_ratios=[1/2., 2, 3], variances=[0.1, 0.1, 0.2, 0.2], name="fc7_mbox_priorbox")
+        priorbox = PriorBox(img_size, 60.0, max_size=114.0, aspect_ratios=[1/2., 2, 3], variances=[0.1, 0.1, 0.2, 0.2], name="fc7_mbox_priorbox")
         h_fc7_mbox_priorbox = priorbox(h_fc7)
         """
         ##########################
